@@ -73,7 +73,7 @@
                         <id>default-cli</id>
                         <configuration>
                             <mainClass>
-                                com.example.proyectohibernateg3/com.example.proyectohibernateg3.HelloApplication
+                                com.example.proyectohibernateg3/com.example.proyectohibernateg3.BibliotecaApplication
                             </mainClass>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>

@@ -4,7 +4,7 @@
         <provider>
             org.hibernate.jpa.HibernatePersistenceProvider
         </provider>
-        <class>ni.edu.uam.proyectohibernateg3.model.Libro</class>
+        <class>com.example.proyectohibernateg3.model.Libro</class>
         <properties>
             <!-- PostgreSQL -->
             <property name="jakarta.persistence.jdbc.driver" value="org.postgresql.Driver"/>
