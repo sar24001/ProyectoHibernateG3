@@ -1,95 +1,81 @@
 package com.example.proyectohibernateg3.controller;
 
-import com.example.proyectohibernateg3.model.Libro;
+import com.example.proyectohibernateg3.dao.CategoriaDAO;
 import com.example.proyectohibernateg3.dao.LibroDAO;
+import com.example.proyectohibernateg3.database.JPAUtil;
+import com.example.proyectohibernateg3.model.Categoria;
+import com.example.proyectohibernateg3.model.Libro;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.beans.value.ObservableValue;
 
-import java.math.BigDecimal;
-import java.util.Optional;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
-import com.example.proyectohibernateg3.database.JPAUtil;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
 
 public class LibroController {
 
-    @FXML
-    private TableView<Libro> tblLibros;
+    @FXML private TableView<Libro> tblLibros;
+    @FXML private TableColumn<Libro, Long> colId;
+    @FXML private TableColumn<Libro, String> colTitulo;
+    @FXML private TableColumn<Libro, String> colAutor;
+    @FXML private TableColumn<Libro, Integer> colAnio;
+    @FXML private TableColumn<Libro, BigDecimal> colPrecio;
+    @FXML private TableColumn<Libro, String> colCategoria;
 
-    @FXML
-    private TableColumn<Libro, Long> colId;
+    @FXML private TextField txtTitulo, txtAutor, txtAnio, txtPrecio;
+    @FXML private ComboBox<Categoria> cmbCategoria;
 
-    @FXML
-    private TableColumn<Libro, String> colTitulo;
-
-    @FXML
-    private TableColumn<Libro, String> colAutor;
-
-    @FXML
-    private TableColumn<Libro, Integer> colAnio;
-
-    @FXML
-    private TableColumn<Libro, BigDecimal> colPrecio;
-
-    @FXML
-    private TextField txtTitulo, txtAutor, txtAnio, txtPrecio;
-
-    @FXML
-    private Button btnModificar, btnEliminar;
-
-    @FXML
-    private Button obtenerLibro;
-
-    @FXML
-    private Button btnNuevo;
+    @FXML private Button btnModificar, btnEliminar, obtenerLibro, btnNuevo;
 
     private final LibroDAO libroDAO = new LibroDAO();
-
-    // ID del registro seleccionado
+    private final CategoriaDAO categoriaDAO = new CategoriaDAO();
     private Long idSeleccionado = null;
 
     @FXML
     public void initialize() {
+        colId.setCellValueFactory(new PropertyValueFactory<>("id"));
+        colTitulo.setCellValueFactory(new PropertyValueFactory<>("titulo"));
+        colAutor.setCellValueFactory(new PropertyValueFactory<>("autor"));
+        colAnio.setCellValueFactory(new PropertyValueFactory<>("anioPublicacion"));
+        colPrecio.setCellValueFactory(new PropertyValueFactory<>("precio"));
 
-        colId.setCellValueFactory(
-                new PropertyValueFactory<>("id")
+        colCategoria.setCellValueFactory(cellData -> {
+            Categoria cat = cellData.getValue().getCategoria();
+            return new SimpleStringProperty(cat != null ? cat.getNombre() : "");
+        });
+
+        tblLibros.getSelectionModel().selectedItemProperty().addListener(
+                (ObservableValue<? extends Libro> observable, Libro oldValue, Libro newValue) -> {
+                    if (newValue != null) {
+                        seleccionarLibro(newValue);
+                    } else {
+                        idSeleccionado = null;
+                        actualizarBotones();
+                    }
+                }
         );
-
-        colTitulo.setCellValueFactory(
-                new PropertyValueFactory<>("titulo")
-        );
-
-        colAutor.setCellValueFactory(
-                new PropertyValueFactory<>("autor")
-        );
-
-        colAnio.setCellValueFactory(
-                new PropertyValueFactory<>("anioPublicacion")
-        );
-
-        colPrecio.setCellValueFactory(
-                new PropertyValueFactory<>("precio")
-        );
-
-        tblLibros.getSelectionModel()
-                .selectedItemProperty()
-                .addListener(
-                        (ObservableValue<? extends Libro> observable,
-                         Libro oldValue, Libro newValue) -> {
-
-                            if (newValue != null) {
-                                seleccionarLibro(newValue);
-                            } else {
-                                idSeleccionado = null;
-                                actualizarBotones();
-                            }
-                        }
-                );
 
         actualizarBotones();
         cargarLibros();
+        cargarCategorias();
+    }
+
+    @FXML
+    private void cargarCategorias() {
+        try {
+            List<Categoria> categorias = categoriaDAO.listar();
+            cmbCategoria.setItems(FXCollections.observableArrayList(categorias));
+        } catch (Exception e) {
+            e.printStackTrace();
+            mostrarAlerta(Alert.AlertType.ERROR, "No se pudieron cargar categorías: " + e.getMessage());
+        }
     }
 
     @FXML
@@ -101,12 +87,12 @@ public class LibroController {
         idSeleccionado = libro.getId();
         txtTitulo.setText(libro.getTitulo());
         txtAutor.setText(libro.getAutor());
-        txtAnio.setText(
-                String.valueOf(libro.getAnioPublicacion())
-        );
-        txtPrecio.setText(
-                String.valueOf(libro.getPrecio())
-        );
+        txtAnio.setText(String.valueOf(libro.getAnioPublicacion()));
+        txtPrecio.setText(String.valueOf(libro.getPrecio()));
+
+        // CORRECCIÓN: Asignar la categoría al ComboBox al seleccionar una fila de la tabla
+        cmbCategoria.setValue(libro.getCategoria());
+
         actualizarBotones();
     }
 
@@ -117,15 +103,45 @@ public class LibroController {
     }
 
     private Libro obtenerLibroFormulario() {
-        String titulo = txtTitulo.getText();
-        String autor = txtAutor.getText();
-        int anio = Integer.valueOf(txtAnio.getText());
-        BigDecimal precio = new BigDecimal(txtPrecio.getText());
+        String titulo = txtTitulo.getText() != null ? txtTitulo.getText().trim() : "";
+        String autor = txtAutor.getText() != null ? txtAutor.getText().trim() : "";
+        Categoria categoria = cmbCategoria.getValue();
+
+        if (titulo.isEmpty() || autor.isEmpty()) {
+            mostrarAlerta(Alert.AlertType.WARNING, "El título y el autor son obligatorios.");
+            return null;
+        }
+
+        if (categoria == null) {
+            mostrarAlerta(Alert.AlertType.WARNING, "Debe seleccionar una categoría.");
+            return null;
+        }
+
+        int anio;
+        try {
+            anio = Integer.parseInt(txtAnio.getText().trim());
+        } catch (NumberFormatException ex) {
+            mostrarAlerta(Alert.AlertType.WARNING, "El año debe ser un número entero válido.");
+            return null;
+        }
+
+        BigDecimal precio;
+        try {
+            precio = new BigDecimal(txtPrecio.getText().trim());
+        } catch (Exception ex) {
+            mostrarAlerta(Alert.AlertType.WARNING, "El precio debe ser un número válido.");
+            return null;
+        }
+
         Libro libro = new Libro();
         libro.setTitulo(titulo);
         libro.setAutor(autor);
         libro.setAnioPublicacion(anio);
         libro.setPrecio(precio);
+
+        // CORRECCIÓN: Asignar la categoría seleccionada al objeto Libro
+        libro.setCategoria(categoria);
+
         return libro;
     }
 
@@ -133,10 +149,15 @@ public class LibroController {
     private void guardarLibro() {
         try {
             Libro libro = obtenerLibroFormulario();
+            if (libro == null) return;
+
             libroDAO.guardar(libro);
+            limpiarFormulario();
             cargarLibros();
+            mostrarAlerta(Alert.AlertType.INFORMATION, "Libro guardado exitosamente.");
         } catch (Exception ex) {
             ex.printStackTrace();
+            mostrarAlerta(Alert.AlertType.ERROR, "Error al guardar el libro: " + ex.getMessage());
         }
     }
 
@@ -145,21 +166,24 @@ public class LibroController {
         if (idSeleccionado == null) return;
         try {
             Libro libro = obtenerLibroFormulario();
+            if (libro == null) return;
+
             libro.setId(idSeleccionado);
 
             boolean modificado = modificar(libro);
 
             if (!modificado) {
-                // Alert para indicar que hubo un error a nivel de transacción
+                mostrarAlerta(Alert.AlertType.ERROR, "No se encontró el libro a modificar en la base de datos.");
                 return;
             }
 
+            limpiarFormulario();
             cargarLibros();
-
-            // Alert para indicar que la modificación fue exitosa
+            mostrarAlerta(Alert.AlertType.INFORMATION, "Libro modificado exitosamente.");
 
         } catch (Exception ex) {
             ex.printStackTrace();
+            mostrarAlerta(Alert.AlertType.ERROR, "Error al modificar el libro: " + ex.getMessage());
         }
     }
 
@@ -168,28 +192,27 @@ public class LibroController {
         if (idSeleccionado == null) return;
         try {
             Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
-            confirmacion.setTitle("Confirmacion de eliminacion de datos");
+            confirmacion.setTitle("Confirmación de eliminación");
             confirmacion.setHeaderText("Eliminar libro");
-            confirmacion.setContentText(
-                    "Estas seguro que desea eliminar el registro?"
-            );
+            confirmacion.setContentText("¿Estás seguro que deseas eliminar el registro?");
 
             Optional<ButtonType> resultado = confirmacion.showAndWait();
             if (resultado.isEmpty() || resultado.get() != ButtonType.OK) {
                 return;
             }
 
-            boolean elimiando = eliminar(idSeleccionado);
-            if (elimiando) {
-                // Alert
+            boolean eliminado = eliminar(idSeleccionado);
+            if (eliminado) {
                 limpiarFormulario();
                 cargarLibros();
+                mostrarAlerta(Alert.AlertType.INFORMATION, "Libro eliminado correctamente.");
+            } else {
+                mostrarAlerta(Alert.AlertType.WARNING, "El libro ya no existe en la base de datos.");
             }
-
-            // Alert para indicar que la operacion fue realizada
 
         } catch (Exception ex) {
             ex.printStackTrace();
+            mostrarAlerta(Alert.AlertType.ERROR, "Error al eliminar el libro: " + ex.getMessage());
         }
     }
 
@@ -234,15 +257,25 @@ public class LibroController {
             em.close();
         }
     }
+
     @FXML
-    private void limpiarFormulario(){
+    private void limpiarFormulario() {
         tblLibros.getSelectionModel().clearSelection();
         idSeleccionado = null;
         txtTitulo.clear();
         txtAutor.clear();
         txtAnio.clear();
         txtPrecio.clear();
+
+        // CORRECCIÓN: Limpiar la selección del ComboBox
+        cmbCategoria.getSelectionModel().clearSelection();
+
         actualizarBotones();
     }
 
+    private void mostrarAlerta(Alert.AlertType tipo, String mensaje) {
+        Alert alerta = new Alert(tipo, mensaje);
+        alerta.setHeaderText(null);
+        alerta.showAndWait();
+    }
 }

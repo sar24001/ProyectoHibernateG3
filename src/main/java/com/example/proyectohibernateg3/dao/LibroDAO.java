@@ -1,4 +1,5 @@
 package com.example.proyectohibernateg3.dao;
+import com.example.proyectohibernateg3.model.Categoria;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
 import com.example.proyectohibernateg3.database.JPAUtil;
@@ -7,6 +8,10 @@ import com.example.proyectohibernateg3.model.Libro;
 import java.util.List;
 
 public class LibroDAO {
+
+    private Categoria obtenerCategoria(EntityManager em, Libro libro) {
+        return null;
+    }
     public void guardar(Libro libro) {
         EntityManager em = JPAUtil.getEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -31,7 +36,7 @@ public class LibroDAO {
     public List<Libro> listar() {
         EntityManager em = JPAUtil.getEntityManager();
         try {
-            return em.createQuery("SELECT l FROM Libro l ORDER BY l.id", Libro.class).getResultList();
+            return em.createQuery("SELECT l FROM Libro l JOIN FETCH l.categoria ORDER BY l.id", Libro.class).getResultList();
         }
         finally {
             em.close();
@@ -49,6 +54,10 @@ public class LibroDAO {
                 tx.rollback();
                 return false;
             }
+
+            Categoria categoria = obtenerCategoria(em, libro);
+            libroBD.setCategoria(categoria);
+
             libroBD.setTitulo(libro.getTitulo());
             libroBD.setAutor(libro.getAutor());
             libroBD.setAnioPublicacion(libro.getAnioPublicacion());
